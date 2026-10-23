@@ -202,6 +202,15 @@ test_param_iter(void)
         }
     }
     CHECK(n == 3);
+
+    /* a bare parameter has no value: NULL and empty, whatever val held */
+    it      = ht_param_iter_ctor(HTSTRING_LIT("flag&x=1"));
+    val.len = 99;
+    CHECK(ht_param_iter_next(&it, &key, &val));
+    CHECK_STR(key, "flag");
+    CHECK(val.startp == NULL && val.len == 0);
+    CHECK(ht_param_iter_next(&it, &key, &val));
+    CHECK_STR(val, "1");
 }
 
 static void
