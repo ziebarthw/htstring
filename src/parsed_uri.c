@@ -59,8 +59,9 @@ parse_uri_view_internal(const char *url, size_t len, bool is_connect, struct par
         {
             if (*d < '0' || *d > '9') return false; // Invalid port char
             port = port * 10 + (uint32_t)(*d - '0');
+            if (port > 65535) return false; // before it can wrap around
         }
-        if (port == 0 || port > 65535) return false;
+        if (port == 0) return false;
         out->port_num = (uint16_t)port;
 
         SET_FIELD(out, URI_PORT, cursor, end, url);
@@ -144,8 +145,8 @@ parse_uri_view_internal(const char *url, size_t len, bool is_connect, struct par
             {
                 if (*d < '0' || *d > '9') return false; // Invalid port char
                 port = port * 10 + (uint32_t)(*d - '0');
+                if (port > 65535) return false; // before it can wrap around
             }
-            if (port > 65535) return false;
             out->port_num = (uint16_t)port;
         }
 
