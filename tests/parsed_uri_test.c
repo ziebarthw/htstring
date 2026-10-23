@@ -134,6 +134,12 @@ test_errors(void)
     CHECK(parsed_uri_has_error((const struct parsed_uri[]){ parse("http://h:65536/", false) }));
     CHECK(!parsed_uri_has_error((const struct parsed_uri[]){ parse("http://h:65535/", false) }));
 
+    /* 4295032831 is 2^32 + 65535: it must not wrap around to a valid port */
+    CHECK(parsed_uri_has_error((const struct parsed_uri[]){ parse("http://h:4295032831/", false) }));
+    CHECK(parsed_uri_has_error((const struct parsed_uri[]){ parse("h:4295032831", true) }));
+    CHECK(parsed_uri_has_error((const struct parsed_uri[]){ parse("h:4294967376", true) }));    /* 2^32 + 80 */
+    CHECK(!parsed_uri_has_error((const struct parsed_uri[]){ parse("http://h:00080/", false) }));
+
     struct parsed_uri empty = parse_uri_view(HTSTRING_LIT(""), false);
     CHECK(parsed_uri_has_error(&empty));
 
