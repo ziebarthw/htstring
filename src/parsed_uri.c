@@ -1,6 +1,5 @@
-
 #include <string.h>
-#include "evhtp/parsed_uri.h"
+#include "htstring/parsed_uri.h"
 
 #define SET_FIELD(view, id, start_ptr, end_ptr, base_ptr) \
 do { \

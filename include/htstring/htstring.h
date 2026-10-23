@@ -32,8 +32,7 @@ htstring_ctor(const char * startp, size_t len)
 }
 
 /*
- * Cursor primitives.  (Belong in evhtp/htstring.h; kept here so this
- * file is reviewable standalone.  Move verbatim.)
+ * Cursor primitives.
  *
  *   htstring_end()      - end pointer of a region.
  *   htstring_consume()  - count-driven: "the stream advanced n bytes".
