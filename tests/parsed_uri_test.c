@@ -153,6 +153,28 @@ test_errors(void)
     CHECK(parsed_uri_to_cstr(NULL, NULL) == NULL);
 }
 
+/* The bracket check must not look outside the string: a CONNECT target's host
+ * starts at offset 0. Here the byte just before the string is '[', so reading
+ * it shows up as a wrong answer, not just a stray read. */
+static void
+test_no_read_before_start(void)
+{
+    const char         buf[] = "[example.com:443";
+    const char        *p     = buf + 1;
+    struct parsed_uri  u     = parse(p, true);
+
+    CHECK(!parsed_uri_has_error(&u));
+    CHECK_STR(parsed_uri_get_host_port(p, &u), "example.com:443");
+    CHECK_STR(parsed_uri_get_authority(p, &u), "example.com:443");
+
+    const char         buf2[] = "[/no/authority";
+    const char        *q      = buf2 + 1;
+    struct parsed_uri  v      = parse(q, false);
+
+    CHECK(parsed_uri_get_host_port(q, &v).len == 0);
+    CHECK(parsed_uri_get_authority(q, &v).len == 0);
+}
+
 static void
 test_join(void)
 {
@@ -175,6 +197,7 @@ main(void)
     test_origin_form();
     test_connect();
     test_errors();
+    test_no_read_before_start();
     test_join();
     return check_done("parsed_uri_test");
 }
