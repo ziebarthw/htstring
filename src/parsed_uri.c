@@ -200,14 +200,16 @@ parsed_uri_get_authority(const char* p, const struct parsed_uri* u)
     {
         rval = parsed_uri_get_user_info(p, u);
         ++rval.len; // include '@'
-        if (rval.startp[rval.len] == '[')
+        if (u->flags & URI_IS_IPV6)
             rval.len += 2;
         rval.len += u->fields[URI_HOST].len;
     }
     else
     {
+        // The flag, not a peek at the byte before the host: that byte is
+        // outside the string when the host starts it (CONNECT host:port).
         rval = parsed_uri_get_host(p, u);
-        if (rval.startp[-1] == '[')
+        if (u->flags & URI_IS_IPV6)
         {
             --rval.startp;
             rval.len += 2;
@@ -236,7 +238,7 @@ parsed_uri_get_host_port(const char* p, const struct parsed_uri* u)
         return rval;
 
     rval = parsed_uri_get_host(p, u);
-    if (rval.startp[-1] == '[')
+    if (u->flags & URI_IS_IPV6)
     {
         --rval.startp;
         rval.len += 2;
