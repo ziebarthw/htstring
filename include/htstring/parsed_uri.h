@@ -1,9 +1,13 @@
-
-#pragma once
+#ifndef HTSTRING_PARSED_URI_H
+#define HTSTRING_PARSED_URI_H
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "evhtp/htstring.h"
+#include "htstring/htstring.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct uri_field_data uri_field_data_t;
 struct uri_field_data {
@@ -154,6 +158,7 @@ parsed_uri_get_host(const char* p, const struct parsed_uri* u)
 static inline int
 parsed_uri_get_port(const char* p, const struct parsed_uri* u)
 {
+    (void)p;
     return parsed_uri_has_port(u) ? (int)u->port_num : -1;
 }
 
@@ -216,3 +221,8 @@ parsed_uri_get_fragment(const char* p, const struct parsed_uri* u)
     }
     return rval;
 }
+#ifdef __cplusplus
+}
+#endif
+
+#endif

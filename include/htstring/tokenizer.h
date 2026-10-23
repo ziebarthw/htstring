@@ -1,5 +1,5 @@
-
-#pragma once
+#ifndef HTSTRING_TOKENIZER_H
+#define HTSTRING_TOKENIZER_H
 
 #include <stdio.h>
 
@@ -7,7 +7,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "evhtp/htstring.h"
+#include "htstring/htstring.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct ht_delim_policy ht_delim_policy_t;
 struct ht_delim_policy {
@@ -169,10 +173,10 @@ ht_param_iter_ctor(htstring_t item)
 }
 
 /* Pre-defined policies for performance */
-static const ht_delim_policy_t p_comma = { .is_single = true, .single_delim = ',' };
-static const ht_delim_policy_t p_semi  = { .is_single = true, .single_delim = ';' };
-static const ht_delim_policy_t p_eq    = { .is_single = true, .single_delim = '=' };
-static const ht_delim_policy_t p_amp   = { .is_single = true, .single_delim = '&' };
+static const ht_delim_policy_t p_comma = { .single_delim = ',', .is_single = true };
+static const ht_delim_policy_t p_semi  = { .single_delim = ';', .is_single = true };
+static const ht_delim_policy_t p_eq    = { .single_delim = '=', .is_single = true };
+static const ht_delim_policy_t p_amp   = { .single_delim = '&', .is_single = true };
 
 static inline bool
 ht_param_iter_next(ht_param_iter_t * it, htstring_t * key, htstring_t * val)
@@ -181,7 +185,7 @@ ht_param_iter_next(ht_param_iter_t * it, htstring_t * key, htstring_t * val)
     if (!httokenizer_next(&it->tok, &p_amp, &part))
         return false;
 
-    const char * eq = memchr(part.startp, '=', part.len);
+    const char * eq = (const char *)memchr(part.startp, '=', part.len);
     if (!eq) {            /* bare token, no value */
         *key = part;
         val->startp = NULL;
@@ -247,7 +251,7 @@ ht_element_iter_next(ht_element_iter_t * it, ht_element_t * el)
 
         ht_kv_t * kv = &el->params[el->param_count];
 
-        const char * eq = memchr(seg.startp, '=', seg.len);
+        const char * eq = (const char *)memchr(seg.startp, '=', seg.len);
         if (eq) {
             kv->name.startp  = seg.startp;
             kv->name.len     = (size_t)(eq - seg.startp);
@@ -321,7 +325,7 @@ ht_cookie_iter_next(ht_cookie_iter_t * it, ht_cookie_pair_t * out)
     if (!httokenizer_next(&it->tok, &p_semi, &part))
         return false;
 
-    const char * eq = memchr(part.startp, '=', part.len);
+    const char * eq = (const char *)memchr(part.startp, '=', part.len);
     if (eq) {
         out->name.startp  = part.startp;
         out->name.len     = (size_t)(eq - part.startp);
@@ -383,7 +387,7 @@ ht_forwarded_iter_next(ht_forwarded_iter_t * it, ht_forwarded_element_t * el)
             if (param.len == 0)
                 continue;
 
-            const char * eq = memchr(param.startp, '=', param.len);
+            const char * eq = (const char *)memchr(param.startp, '=', param.len);
             if (!eq)
                 continue;
 
@@ -413,3 +417,8 @@ ht_forwarded_iter_next(ht_forwarded_iter_t * it, ht_forwarded_element_t * el)
 
     return false;
 }
+#ifdef __cplusplus
+}
+#endif
+
+#endif
