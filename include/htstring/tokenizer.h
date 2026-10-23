@@ -125,7 +125,7 @@ httokenizer_get_last_delim(httokenizer_t * t)
 
 typedef struct {
     htstring_t name;
-    htstring_t value; /* value.data == NULL if bare token, no '=' */
+    htstring_t value; /* value.startp == NULL if bare token, no '=' */
 } ht_kv_t;
 
 typedef struct {
@@ -189,6 +189,7 @@ ht_param_iter_next(ht_param_iter_t * it, htstring_t * key, htstring_t * val)
     if (!eq) {            /* bare token, no value */
         *key = part;
         val->startp = NULL;
+        val->len = 0;
         return true;
     }
     key->startp = part.startp;
@@ -317,7 +318,7 @@ ht_cookie_iter_ctor(htstring_t value)
 }
 
 /* Returns true and fills *out; returns false when the header is exhausted.
- * If the component had no '=', out->value.data is NULL. */
+ * If the component had no '=', out->value.startp is NULL. */
 static inline bool
 ht_cookie_iter_next(ht_cookie_iter_t * it, ht_cookie_pair_t * out)
 {
