@@ -379,4 +379,63 @@ htstring_pct_decode(const htstring_t src, char *dst, size_t dst_size)
     return (ptrdiff_t)n;
 }
 
+/* application/x-www-form-urlencoded decoding (the WHATWG URL Standard's
+ * form parser), for query strings and form bodies: "+" becomes a space, and
+ * each "%XX" (hex digits, either case) becomes that byte. Unlike
+ * htstring_pct_decode(), a "%" not followed by two hex digits is not an
+ * error: it is copied as it is, as browsers and servers do.
+ *
+ * Use it on one name or value at a time (ht_param_iter_next() splits them):
+ * "%26" and "%3D" decode to "&" and "=".
+ *
+ * Writes at most dst_size bytes to dst, without a terminating NUL, and
+ * returns the decoded length; -1 only for a dst too small. dst may be
+ * src.startp itself (the output is never longer than the input). src may be
+ * the empty view {NULL, 0}.
+ *
+ * As with htstring_pct_decode(), "%00" decodes to a NUL byte. */
+static inline ptrdiff_t
+htstring_form_decode(const htstring_t src, char *dst, size_t dst_size)
+{
+    size_t n = 0;
+
+    for (size_t i = 0; i < src.len; i++) {
+        char c = src.startp[i];
+
+        if (c == '+') {
+            c = ' ';
+        }
+        else if (c == '%' && src.len - i >= 3) {
+            int hi = htstring_hexval_(src.startp[i + 1]);
+            int lo = htstring_hexval_(src.startp[i + 2]);
+
+            if (hi >= 0 && lo >= 0) {
+                c  = (char)(hi << 4 | lo);
+                i += 2;
+            }
+        }
+        if (n == dst_size) return -1;
+        dst[n++] = c;
+    }
+    return (ptrdiff_t)n;
+}
+
+/* htstring_form_decode() into buf, as a NUL-terminated string: the stack
+ * buffer when it fits, malloc() otherwise (see ht_scratch_reserve()).
+ * Returns the string, and its length in *out_len if out_len isn't NULL; the
+ * length tells a "%00" in the data from the terminating NUL. NULL on
+ * allocation failure. */
+static inline const char *
+htstring_form_decode_cstr(ht_scratch_t *buf, const htstring_t src, size_t *out_len)
+{
+    char      *dst = ht_scratch_reserve(buf, src.len);
+    ptrdiff_t  n;
+
+    if (!dst) return NULL;
+    n = htstring_form_decode(src, dst, src.len);    /* never longer: can't fail */
+    dst[n] = '\0';
+    if (out_len) *out_len = (size_t)n;
+    return dst;
+}
+
 #endif

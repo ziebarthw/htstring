@@ -214,6 +214,35 @@ test_param_iter(void)
 }
 
 static void
+test_param_iter_form_decode(void)
+{
+    /* ht_param_iter_next() with htstring_form_decode(): a whole query string */
+    {
+        ht_param_iter_t it = ht_param_iter_ctor(HTSTRING_LIT("q=caf%C3%A9+au+lait&a%26b=1%3D1&flag&&p=100%"));
+        htstring_t      key, val;
+        char            k[32], v[32];
+        ptrdiff_t       kn, vn;
+        int             i = 0;
+        static const char *const want[][2] = {
+            { "q", "caf\xc3\xa9 au lait" }, { "a&b", "1=1" }, { "flag", "" }, { "p", "100%" },
+        };
+
+        while (ht_param_iter_next(&it, &key, &val)) {
+            if (!key.len && !val.startp) continue;      /* "&&" */
+            kn = htstring_form_decode(key, k, sizeof(k));
+            vn = htstring_form_decode(val, v, sizeof(v));
+            CHECK(i < 4 && kn >= 0 && vn >= 0);
+            if (i < 4) {
+                CHECK((size_t)kn == strlen(want[i][0]) && memcmp(k, want[i][0], (size_t)kn) == 0);
+                CHECK((size_t)vn == strlen(want[i][1]) && memcmp(v, want[i][1], (size_t)vn) == 0);
+            }
+            i++;
+        }
+        CHECK(i == 4);
+    }
+}
+
+static void
 test_forwarded(void)
 {
     ht_forwarded_iter_t    it = ht_forwarded_iter_ctor(HTSTRING_LIT(
@@ -297,6 +326,7 @@ main(void)
     test_set_cookie();
     test_cookie();
     test_param_iter();
+    test_param_iter_form_decode();
     test_forwarded();
     test_element_iter();
     return check_done("tokenizer_test");

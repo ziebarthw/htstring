@@ -297,6 +297,95 @@ test_pct_decode(void)
 #undef DECODE
 }
 
+static void
+test_form_decode(void)
+{
+    char      out[64];
+    ptrdiff_t n;
+
+#define DECODE(lit) htstring_form_decode(HTSTRING_LIT(lit), out, sizeof(out))
+
+    /* "+" is a space; escapes in either case are decoded */
+    n = DECODE("Hello+world");
+    CHECK(n == 11 && memcmp(out, "Hello world", 11) == 0);
+    n = DECODE("a%2Bb+%2b");                /* an encoded "+" stays a "+" */
+    CHECK(n == 5 && memcmp(out, "a+b +", 5) == 0);
+    n = DECODE("bob%40example.com");
+    CHECK(n == 15 && memcmp(out, "bob@example.com", 15) == 0);
+    n = DECODE("%e2%82%AC%26%3D");          /* the euro sign, "&" and "=" */
+    CHECK(n == 5 && memcmp(out, "\xe2\x82\xac&=", 5) == 0);
+    n = DECODE("%25%2525");                 /* decoded once only */
+    CHECK(n == 4 && memcmp(out, "%%25", 4) == 0);
+    n = DECODE("");
+    CHECK(n == 0);
+
+    /* a "%" without two hex digits after it is copied, not refused */
+    n = DECODE("%");
+    CHECK(n == 1 && out[0] == '%');
+    n = DECODE("abc%4");
+    CHECK(n == 5 && memcmp(out, "abc%4", 5) == 0);
+    n = DECODE("%zz%4g%g4");
+    CHECK(n == 9 && memcmp(out, "%zz%4g%g4", 9) == 0);
+    n = DECODE("100%+sure");                /* "%+" isn't an escape; "+" is still a space */
+    CHECK(n == 9 && memcmp(out, "100% sure", 9) == 0);
+    n = DECODE("%%41");                     /* the first "%" is literal, then "%41" */
+    CHECK(n == 2 && memcmp(out, "%A", 2) == 0);
+
+    /* "%00" decodes */
+    n = DECODE("a%00b");
+    CHECK(n == 3 && memcmp(out, "a\0b", 3) == 0);
+
+    /* a dst too small: refused; exactly big enough: fine */
+    CHECK(htstring_form_decode(HTSTRING_LIT("a+b"), out, 2) == -1);
+    CHECK(htstring_form_decode(HTSTRING_LIT("%41+"), out, 1) == -1);
+    CHECK(htstring_form_decode(HTSTRING_LIT("%41+"), out, 2) == 2 && memcmp(out, "A ", 2) == 0);
+
+    /* the empty view {NULL, 0}, as ht_param_iter_next() gives for a bare name */
+    {
+        htstring_t none = { NULL, 0 };
+
+        CHECK(htstring_form_decode(none, NULL, 0) == 0);
+    }
+
+    /* in place */
+    {
+        char buf[] = "x%3Dy+z%";
+
+        n = htstring_form_decode(htstring_ctor(buf, strlen(buf)), buf, sizeof(buf));
+        CHECK(n == 6 && memcmp(buf, "x=y z%", 6) == 0);
+    }
+
+    /* only the view is decoded, not what follows it */
+    {
+        const char *p = "a+b%41&c=d";
+
+        n = htstring_form_decode(htstring_ctor(p, 6), out, sizeof(out));
+        CHECK(n == 4 && memcmp(out, "a bA", 4) == 0);
+    }
+#undef DECODE
+
+    /* into a scratch buffer, NUL-terminated: stack, then heap */
+    {
+        ht_scratch_auto(buf);
+        size_t      len = 99;
+        const char *z   = htstring_form_decode_cstr(&buf, HTSTRING_LIT("k%3Dv+1"), &len);
+
+        CHECK(z && len == 5 && strcmp(z, "k=v 1") == 0 && buf.ptr == buf.stack);
+
+        z = htstring_form_decode_cstr(&buf, HTSTRING_LIT("a%00b"), &len);
+        CHECK(z && len == 3 && z[3] == '\0' && strlen(z) == 1);   /* len sees past the "%00" */
+
+        htstring_t none = { NULL, 0 };
+        z = htstring_form_decode_cstr(&buf, none, NULL);
+        CHECK(z && z[0] == '\0');
+
+        char big[HT_SCRATCH_SIZE * 2];
+        memset(big, '+', sizeof(big));
+        z = htstring_form_decode_cstr(&buf, htstring_ctor(big, sizeof(big)), &len);
+        CHECK(z && len == sizeof(big) && buf.ptr != buf.stack && z[0] == ' ' && z[len - 1] == ' ' && z[len] == '\0');
+    }
+}
+
 int
 main(void)
 {
@@ -307,5 +396,6 @@ main(void)
     test_join_cstr();
     test_split();
     test_pct_decode();
+    test_form_decode();
     return check_done("htstring_test");
 }

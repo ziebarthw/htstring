@@ -66,6 +66,7 @@ if (!parsed_uri_has_error(&u)) {
 - **Limits:** components are stored as 16-bit offsets, so input longer than 65535 bytes is rejected.
 - **Splitting:** `htstring_split(path, '/', seg, nseg)` fills an array you provide (on the stack or allocated) with views of each part and returns how many, or -1 if there were more than `nseg`. Empty parts are kept. With a NULL array it just counts.
 - **Percent-decoding:** `htstring_pct_decode(path, buf, sizeof(buf))` turns `%XX` back into bytes and returns the length, or -1 for a bad escape or a full buffer. `+` stays `+`, and `%00` is decoded, so check for a NUL before using the result as a file name.
+- **Form decoding:** `htstring_form_decode(value, buf, sizeof(buf))` decodes one name or value of a query string or form body (`application/x-www-form-urlencoded`): `+` becomes a space, and a `%` not followed by two hex digits is kept as it is, as browsers do. It returns -1 only for a full buffer. `htstring_form_decode_cstr(&scratch, value, &len)` decodes into a scratch buffer as a NUL-terminated string. Use either with `ht_param_iter_next()`, which splits the names and values.
 
 ### Header values
 
