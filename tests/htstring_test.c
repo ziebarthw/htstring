@@ -297,6 +297,83 @@ test_pct_decode(void)
 #undef DECODE
 }
 
+/* A map that sends U+2019 (right single quotation mark) to "'", as a
+ * US-ASCII best-fit table might, and nothing else. */
+static int
+map_2019(unsigned code, void *ctx)
+{
+    ++*(int *)ctx;
+    return code == 0x2019 ? '\'' : -1;
+}
+
+static void
+test_uni_decode(void)
+{
+    char      out[64];
+    ptrdiff_t n;
+
+#define DECODE(lit) htstring_uni_decode(HTSTRING_LIT(lit), out, sizeof(out), NULL, NULL)
+
+    /* everything htstring_form_decode() does */
+    n = DECODE("a+b%20c%2b");
+    CHECK(n == 6 && memcmp(out, "a b c+", 6) == 0);
+    n = DECODE("100%+sure%zz%4");
+    CHECK(n == 14 && memcmp(out, "100% sure%zz%4", 14) == 0);
+
+    /* "%uXXXX": the low byte, either case of "u" and of the hex digits */
+    n = DECODE("%u0027OR%U003c%u003E");
+    CHECK(n == 5 && memcmp(out, "'OR<>", 5) == 0);
+    n = DECODE("%u2019");                   /* no map: the low byte, 0x19 */
+    CHECK(n == 1 && out[0] == 0x19);
+    n = DECODE("%u0000x");
+    CHECK(n == 2 && out[0] == '\0' && out[1] == 'x');
+
+    /* full-width ASCII: U+FF01-U+FF5E become 0x21-0x7E */
+    n = DECODE("%uFF07%uff1c%uFF5E");
+    CHECK(n == 3 && memcmp(out, "'<~", 3) == 0);
+    n = DECODE("%uFF5F%uFF00");             /* just outside: the low byte as it is */
+    CHECK(n == 2 && (unsigned char)out[0] == 0x5f && out[1] == '\0');
+
+    /* a "%u" without four hex digits is copied */
+    n = DECODE("%u");
+    CHECK(n == 2 && memcmp(out, "%u", 2) == 0);
+    n = DECODE("%u123");
+    CHECK(n == 5 && memcmp(out, "%u123", 5) == 0);
+    n = DECODE("%u12g4");
+    CHECK(n == 6 && memcmp(out, "%u12g4", 6) == 0);
+    n = DECODE("%u%41");                    /* then "%41" is still decoded */
+    CHECK(n == 3 && memcmp(out, "%uA", 3) == 0);
+
+    /* decoded once only */
+    n = DECODE("%25u0027");
+    CHECK(n == 6 && memcmp(out, "%u0027", 6) == 0);
+
+    /* a map, where it returns a byte; the fallback where it returns -1 */
+    {
+        int calls = 0;
+
+        n = htstring_uni_decode(HTSTRING_LIT("%u2019%u2018%27"), out, sizeof(out), map_2019, &calls);
+        CHECK(n == 3 && out[0] == '\'' && out[1] == 0x18 && out[2] == '\'');
+        CHECK(calls == 2);                  /* called for "%uXXXX" only */
+    }
+
+    /* dst too small; in place; the empty view */
+    CHECK(htstring_uni_decode(HTSTRING_LIT("%u0041b"), out, 1, NULL, NULL) == -1);
+    CHECK(htstring_uni_decode(HTSTRING_LIT("%u0041b"), out, 2, NULL, NULL) == 2 && memcmp(out, "Ab", 2) == 0);
+    {
+        char buf[] = "x%u0027+%3C";
+
+        n = htstring_uni_decode(htstring_ctor(buf, strlen(buf)), buf, sizeof(buf), NULL, NULL);
+        CHECK(n == 4 && memcmp(buf, "x' <", 4) == 0);
+    }
+    {
+        htstring_t none = { NULL, 0 };
+
+        CHECK(htstring_uni_decode(none, out, sizeof(out), NULL, NULL) == 0);
+    }
+#undef DECODE
+}
+
 static void
 test_form_decode(void)
 {
@@ -397,5 +474,6 @@ main(void)
     test_split();
     test_pct_decode();
     test_form_decode();
+    test_uni_decode();
     return check_done("htstring_test");
 }

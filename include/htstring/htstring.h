@@ -420,6 +420,77 @@ htstring_form_decode(const htstring_t src, char *dst, size_t dst_size)
     return (ptrdiff_t)n;
 }
 
+/* htstring_form_decode() plus the nonstandard "%uXXXX" form (a UTF-16
+ * code unit; the "u" in either case, then four hex digits), which old
+ * Microsoft IIS servers accepted and some clients still send. Use it to see
+ * what a value may decode to where that form is still honoured.
+ *
+ * A "%uXXXX" becomes one byte:
+ *   - map(code, ctx), when map isn't NULL and returns 0-255: a best-fit
+ *     table from code points to bytes (for US-ASCII, U+2019 might become
+ *     "'" and U+00AB "<", for example);
+ *   - otherwise its low byte, plus 0x20 for full-width ASCII
+ *     (U+FF01-U+FF5E: "%uFF07" becomes "'").
+ * A "%u" without four hex digits after it is copied, as a bad "%" is.
+ *
+ * Writes at most dst_size bytes to dst, without a terminating NUL, and
+ * returns the decoded length; -1 only for a dst too small. dst may be
+ * src.startp itself (the output is never longer than the input). src may be
+ * the empty view {NULL, 0}. "%00" and "%u0000" decode to a NUL byte. */
+typedef int (*htstring_uni_map_fn)(unsigned code, void *ctx);
+
+static inline ptrdiff_t
+htstring_uni_decode(const htstring_t src, char *dst, size_t dst_size,
+                    htstring_uni_map_fn map, void *ctx)
+{
+    size_t n = 0;
+
+    for (size_t i = 0; i < src.len; i++) {
+        char c = src.startp[i];
+
+        if (c == '+') {
+            c = ' ';
+        }
+        else if (c == '%' && src.len - i >= 6 &&
+                 (src.startp[i + 1] == 'u' || src.startp[i + 1] == 'U')) {
+            int h[4];
+            int ok = 1;
+
+            for (int k = 0; k < 4; k++) {
+                h[k] = htstring_hexval_(src.startp[i + 2 + k]);
+                ok = ok && h[k] >= 0;
+            }
+            if (ok) {
+                unsigned code = (unsigned)(h[0] << 12 | h[1] << 8 | h[2] << 4 | h[3]);
+                int      m    = map ? map(code, ctx) : -1;
+
+                if (m >= 0 && m <= 255) {
+                    c = (char)m;
+                } else {
+                    unsigned char b = (unsigned char)(code & 0xff);
+
+                    if ((code >> 8) == 0xff && b > 0x00 && b < 0x5f)
+                        b += 0x20;
+                    c = (char)b;
+                }
+                i += 5;
+            }
+        }
+        else if (c == '%' && src.len - i >= 3) {
+            int hi = htstring_hexval_(src.startp[i + 1]);
+            int lo = htstring_hexval_(src.startp[i + 2]);
+
+            if (hi >= 0 && lo >= 0) {
+                c  = (char)(hi << 4 | lo);
+                i += 2;
+            }
+        }
+        if (n == dst_size) return -1;
+        dst[n++] = c;
+    }
+    return (ptrdiff_t)n;
+}
+
 /* htstring_form_decode() into buf, as a NUL-terminated string: the stack
  * buffer when it fits, malloc() otherwise (see ht_scratch_reserve()).
  * Returns the string, and its length in *out_len if out_len isn't NULL; the

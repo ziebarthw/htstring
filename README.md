@@ -67,6 +67,7 @@ if (!parsed_uri_has_error(&u)) {
 - **Splitting:** `htstring_split(path, '/', seg, nseg)` fills an array you provide (on the stack or allocated) with views of each part and returns how many, or -1 if there were more than `nseg`. Empty parts are kept. With a NULL array it just counts.
 - **Percent-decoding:** `htstring_pct_decode(path, buf, sizeof(buf))` turns `%XX` back into bytes and returns the length, or -1 for a bad escape or a full buffer. `+` stays `+`, and `%00` is decoded, so check for a NUL before using the result as a file name.
 - **Form decoding:** `htstring_form_decode(value, buf, sizeof(buf))` decodes one name or value of a query string or form body (`application/x-www-form-urlencoded`): `+` becomes a space, and a `%` not followed by two hex digits is kept as it is, as browsers do. It returns -1 only for a full buffer. `htstring_form_decode_cstr(&scratch, value, &len)` decodes into a scratch buffer as a NUL-terminated string. Use either with `ht_param_iter_next()`, which splits the names and values.
+- **`%u` decoding:** `htstring_uni_decode(value, buf, sizeof(buf), map, ctx)` is form decoding plus the nonstandard `%uXXXX` form that old IIS servers accepted. A `%uXXXX` becomes the byte `map(code, ctx)` returns (a best-fit table from code points to bytes), or, with no map or a -1 from it, the low byte, with full-width ASCII (`%uFF01`-`%uFF5E`) brought down to ASCII. Pass `NULL` for `map` to use only the low-byte rule.
 
 ### Header values
 
